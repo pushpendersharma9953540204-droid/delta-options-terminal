@@ -1,0 +1,44 @@
+==========================================================================================
+ DELTA EXCHANGE OPTIONS STRATEGY BACKTESTER (INR CONVERTED @ 1$ = 85 RS)
+ Underlying: BTCUSD (BTC Perpetual Future) | Trade Size: 0.02 BTC contracts per leg
+ Strategy: Short Strangle (Sell 1 CE + Sell 1 PE) - 2-Day Expiry
+ Capital Used: Rs. 5,000 INR | Exchange Rate: 1 USD = 85 INR
+ Strike Rule: Straddle * 2.5 Offset from ATM
+ Stop Loss: 3.0x Entry Premium (200% Loss on Premium)
+==========================================================================================
+
+[+] Successfully loaded 365 trade pairs from Delta Exchange API historical data (all 7 days included).
+
+[+] Running Step 6 Historical Backtest (Baseline vs. Dual Fallback vs. Closest-Strike Adaptive)...
+
+================================================================================
+ STEP 5: PRE-TRADE SUBSTITUTION EXPLANATION LOG
+================================================================================
+| Intended Strike | Failure Reason | Selected Alt | Premium Comparison | Liquidity | Stop-Loss | Decision |
+|---|---|---|---|---|---|---|
+
+==========================================================================================
+ STEP 6: HISTORICAL BACKTEST PERFORMANCE COMPARISON REPORT (3 CONDITIONS)
+==========================================================================================
+| Metric | Baseline (Strict Intended) | Dual Fallback (Always 2 Legs) | Closest-Strike Adaptive (New Rule) |
+| --- | --- | --- | --- |
+| Total Trades Attempted     | 365                        | 365                           | 365                                |
+| Executed Trades            | 298                        | 365                           | 365                                |
+| Missed Trades              | 67                         | 0                             | 0 (0 Missed)                       |
+| Substituted Trades         | 0                          | 67                            | 9                                  |
+| Execution Mode Breakdown   | Strict Only                | Always Forced 2 Legs          | Both: 298 | 1-Side: 58 | Closest: 9 |
+| Capital Used (INR)         | Rs 5,000                   | Rs 5,000                      | Rs 5,000                           |
+| Net P/L (INR @ 1$=85)      | Rs 64,878.75               | Rs 80,418.73                  | Rs 73,785.80                       |
+| Net P/L (USD)              | $763.28                    | $946.10                       | $868.07                            |
+| Return on Capital (ROI)    | 1297.6%                    | 1608.4%                       | 1475.7%                            |
+| Win Rate                   | 53.4%                      | 53.7%                         | 57.5%                              |
+| Profit Factor              | 2.10                       | 2.14                          | 2.04                               |
+| Max Drawdown (INR)         | Rs 8,459.95                | Rs 7,122.02                   | Rs 8,314.05                        |
+
+==========================================================================================
+ NEW CONDITION BREAKDOWN (CLOSEST-STRIKE ADAPTIVE):
+  * Case 1 (Both Sides Available):      298 Trades (Sold Both CE + PE)
+  * Case 2 (One Side Available):        58 Trades (Sold 1 Available Side Only, 0 Pts Away)
+  * Case 3 (Neither Available):         9 Trades (Sold Closest Away Strike Only)
+  * Resulting Win Rate:                 57.5% (Highest Win Rate of All 3 Modes)
+==========================================================================================

@@ -1,0 +1,45 @@
+================================================================================
+ LIVE DELTA EXCHANGE MARKET EVALUATOR
+ Connected Endpoint: https://api.india.delta.exchange
+ Read-Only API Key: [AUTHENTICATED] (x0aGGj...5wxB)
+ Account Net Equity: $0.00 USD
+================================================================================
+
+[+] Fetching live BTC index and mark price...
+    Current BTC Price: $80,380.13
+
+[+] Fetching live option contracts and quotes from Delta Exchange...
+    Total active BTC option contracts retrieved: 507
+
+[+] Selected 2-Day Expiry Contract: 2026-10-28T12:00:00Z
+
+================================================================================
+ LIVE STRATEGY EVALUATION & STRIKE SUBSTITUTION
+================================================================================
+ Current BTC Spot:               $80,380.13
+ 2-Day Expiry Date:              2026-10-28T12:00:00Z
+ ATM Strike Identified:          $80,400
+ Live ATM Straddle Premium:      $1,459.00
+ Strike Offset (Straddle * 2.5): $3,647.50
+ Intended Call Strike:           $84,000 CE
+ Intended Put Strike:            $76,800 PE
+--------------------------------------------------------------------------------
+ Selected Call Strike:           None (No Qualified Strike)
+ Selected Put Strike:            None (No Qualified Strike)
+ Execution Status:               NO TRADE (Constraints Enforced)
+================================================================================
+
+[+] STEP 5 PRE-TRADE EXPLANATION LOG (LIVE ORDER BOOK AUDIT):
+| Intended Strike | Failure Reason | Selected Alt | Premium Comparison | Liquidity | Stop-Loss | Decision |
+|---|---|---|---|---|---|---|
+| 84000 | Contract does not exist in chain: CE contract, PE contract | None | Target: 116.72 | Alt: N/A | N/A (No eligible strikes) | N/A | **No Trade** |
+| 76800 | Contract does not exist in chain: CE contract, PE contract | None | Target: 116.72 | Alt: N/A | N/A (No eligible strikes) | N/A | **No Trade** |
+
+[!] Trade Aborted (NO TRADE):
+    Delta Exchange has not yet listed strikes as far OTM as the Straddle * 2.5 target,
+    or quotes did not meet the strict spread/liquidity safety constraints.
+    The strategy strict rules protected you from forcing a distorted trade!
+
+================================================================================
+ Report saved to: live_trade_plan.txt
+================================================================================

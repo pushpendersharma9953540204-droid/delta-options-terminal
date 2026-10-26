@@ -1,0 +1,91 @@
+
+========================================================================================
+             DELTA EXCHANGE MECHANICAL EXECUTION GUIDE -- OFFICIAL TRADE TICKET
+========================================================================================
+[1] TIMING & SCHEDULE SPECIFICATIONS:
+----------------------------------------------------------------------------------------
+  * ENTRY DATE:              2026-10-26 (Monday)
+  * ENTRY TIME:              10:00:00 PM IST (22:00:00)
+  * EXPIRY DATE:             2026-10-28 (Wednesday)
+  * SETTLEMENT TIME:         05:30:00 PM IST (17:30:00) / 12:00:00 UTC
+  * PLANNED EXIT TIME:       05:29:00 PM IST (17:29:00) (1 Minute Before Settlement)
+  * TOTAL HOLDING WINDOW:    43.5 Hours (Approx 43h 29m)
+  * CURRENT SYSTEM TIME:     27-Oct-2026 12:53:07 AM IST
+
+----------------------------------------------------------------------------------------
+[2] TODAY'S STRATEGY EXECUTION DECISION:
+----------------------------------------------------------------------------------------
+  >>> 🟢 SELL BOTH (CE + PE) <<<
+  * Market Regime:           BTC Flat / Rangebound (Strangle Optimal)
+  * Strategy Structure:      Short Strangle (2 Legs)
+  * Rationale:               Both Call and Put target strikes (or safe OTM substitutes with Delta <= 0.10) are listed on Delta Exchange. The market is rangebound. Execute Short Strangle on both legs.
+  * Historical Win Rate:     76.1% (121 Wins / 38 Losses)
+  * Historical Net Profit:   +$240.71 USD (Rs. 20,460 RS)
+  * Annual Frequency:        159 Days (44.7% of year)
+
+----------------------------------------------------------------------------------------
+[3] UNDERLYING ASSET & FLOWCHART DERIVATION:
+----------------------------------------------------------------------------------------
+  * Underlying Asset:        Bitcoin (BTC) Perpetual Future [Symbol: BTCUSD]
+  * Current BTC Perp Price:  $80,036.74 USD
+  * Identified ATM Strike:   $80,000
+  * 2-Day ATM Straddle:      $1,463.00 USD (ATM CE Bid + ATM PE Bid)
+  * Mathematical Offset:     Straddle x 2.5 = $3,657.50 Offset
+  * Target Call Formula:     Spot ($80,037) + Offset = $83,600 CE
+  * Target Put Formula:      Spot ($80,037) - Offset = $76,400 PE
+
+----------------------------------------------------------------------------------------
+[4] DELTA EXCHANGE BOARD AUDIT (FLOWCHART STEP 3):
+----------------------------------------------------------------------------------------
+  CALL (CE) LEG EVALUATION:
+  * Status:                  QUEUE_SELL
+  * Flowchart Rule:          [B] Not Listed, but Delta 0.06 <= 0.10 -> Clamped to Highest CE
+  * Greeks / Delta:          Delta = 0.0620
+  * Strike Selected:         $83,200 CE (C-BTC-83200-281026)
+  * Audit Note:              According to strategy, intended strike to sell is $83,600 CE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is $83,200 CE (400 points away).
+
+  PUT (PE) LEG EVALUATION:
+  * Status:                  QUEUE_SELL
+  * Flowchart Rule:          [B] Not Listed, but Delta 0.07 <= 0.10 -> Clamped to Lowest PE
+  * Greeks / Delta:          Delta = 0.0650
+  * Strike Selected:         $77,200 PE (P-BTC-77200-281026)
+  * Audit Note:              According to strategy, intended strike to sell is $76,400 PE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is $77,200 PE (800 points away).
+
+========================================================================================
+[5] EXECUTABLE ORDERS FOR TONIGHT:
+========================================================================================
+
+  ORDER 1: SELL CALL OPTION (CE)
+  --------------------------------------------------------------------------------------
+  * Action:                  SELL (Short)
+  * Contract Symbol:         C-BTC-83200-281026
+  * Strike Price:            $83,200 CE
+  * Expiry Date:             2026-10-28 (Wednesday)
+  * Quantity:                0.02 BTC
+  * Limit Entry Price:       $45.00 USD (10:00 PM IST Closed Candle)
+  * Live Order Book (Now):   Bid $45.0 / Ask $47.2 USD
+  * Gross Premium Credit:    $0.90 USDT
+  * 200% STOP-LOSS TRIGGER:  $135.00 USD (Exit at 3.0x Entry Premium)
+  * Max Loss at Stop-Loss:   -$1.80 USDT (-200% on Leg Premium)
+
+  ORDER 2: SELL PUT OPTION (PE)
+  --------------------------------------------------------------------------------------
+  * Action:                  SELL (Short)
+  * Contract Symbol:         P-BTC-77200-281026
+  * Strike Price:            $77,200 PE
+  * Expiry Date:             2026-10-28 (Wednesday)
+  * Quantity:                0.02 BTC
+  * Limit Entry Price:       $95.00 USD (10:00 PM IST Closed Candle)
+  * Live Order Book (Now):   Bid $95.0 / Ask $99.8 USD
+  * Gross Premium Credit:    $1.90 USDT
+  * 200% STOP-LOSS TRIGGER:  $285.00 USD (Exit at 3.0x Entry Premium)
+  * Max Loss at Stop-Loss:   -$3.80 USDT (-200% on Leg Premium)
+
+========================================================================================
+[6] PORTFOLIO & RISK SUMMARY:
+========================================================================================
+  * Net Premium Credit:      $2.80 USDT (Rs. 238.00 RS)
+  * Position Sizing:         0.02 BTC per traded leg
+  * Primary Exit Rule:       Hold until 2026-10-28 (Wednesday) at 05:29:00 PM IST (17:29:00) (Full Theta Decay)
+  * Risk Exit Rule:          If either traded leg touches 3.0x entry price (200% loss), buyback immediately!
+========================================================================================

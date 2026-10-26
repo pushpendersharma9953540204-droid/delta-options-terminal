@@ -1,0 +1,22 @@
+# Environment variables & API credentials (never commit secrets)
+.env
+.env.local
+*.env
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# System files & logs
+*.log
+.DS_Store
+Thumbs.db
