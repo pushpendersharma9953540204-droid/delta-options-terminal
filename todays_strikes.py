@@ -425,7 +425,14 @@ def get_complete_trade_ticket(mode: str = "auto"):
         historical_profit_inr = 20460.0
         historical_days_count = 159
         historical_days_pct = 44.7
-        decision_explanation = "Both Call and Put target strikes (or safe OTM substitutes with Delta <= 0.10) are listed on Delta Exchange. The market is rangebound. Execute Short Strangle on both legs."
+        if not is_ce_sub and not is_pe_sub:
+            decision_explanation = "Both Call and Put target strikes have exact matches listed on Delta Exchange board. Execute Short Strangle on both exact legs."
+        elif not is_ce_sub and is_pe_sub:
+            decision_explanation = "Call leg has an exact match and Put leg is clamped to board lowest strike (Delta <= 0.10). Execute Short Strangle on both legs."
+        elif is_ce_sub and not is_pe_sub:
+            decision_explanation = "Put leg has an exact match and Call leg is clamped to board highest strike (Delta <= 0.10). Execute Short Strangle on both legs."
+        else:
+            decision_explanation = "Neither side has an exact match, but both board boundaries satisfy Delta <= 0.10 safe threshold. Execute clamped Short Strangle on both legs."
     elif ce_status == "QUEUE_SELL" and pe_status != "QUEUE_SELL":
         decision = "SELL CE ONLY"
         decision_badge = "🔴 SELL CE ONLY"
@@ -439,7 +446,7 @@ def get_complete_trade_ticket(mode: str = "auto"):
         historical_profit_inr = 8840.0
         historical_days_count = 94
         historical_days_pct = 26.4
-        decision_explanation = "Put strikes are outside Delta Exchange's board range due to downward price momentum. Only Call leg is eligible. Never abort! Sell CE only (historical 94.68% win rate)."
+        decision_explanation = f"Put leg is outside Delta Exchange board range with high Delta ({lowest_pe_delta:.2f} > 0.10) and is skipped. Sell Call leg only ({'Exact Match' if not is_ce_sub else 'Clamped Highest with Delta <= 0.10'})."
     elif ce_status != "QUEUE_SELL" and pe_status == "QUEUE_SELL":
         decision = "SELL PE ONLY"
         decision_badge = "🔵 SELL PE ONLY"
@@ -453,7 +460,7 @@ def get_complete_trade_ticket(mode: str = "auto"):
         historical_profit_inr = 12363.0
         historical_days_count = 103
         historical_days_pct = 28.9
-        decision_explanation = "Call strikes are outside Delta Exchange's board range due to upward price surge. Only Put leg is eligible. Never abort! Sell PE only (historical 95.15% win rate)."
+        decision_explanation = f"Call leg is outside Delta Exchange board range with high Delta ({highest_ce_delta:.2f} > 0.10) and is skipped. Sell Put leg only ({'Exact Match' if not is_pe_sub else 'Clamped Lowest with Delta <= 0.10'})."
     else:
         decision = "NO TRADE"
         decision_badge = "⚪ NO TRADE"
@@ -467,7 +474,7 @@ def get_complete_trade_ticket(mode: str = "auto"):
         historical_profit_inr = 0.0
         historical_days_count = 0
         historical_days_pct = 0.0
-        decision_explanation = "Neither leg is eligible on Delta Exchange."
+        decision_explanation = f"Neither leg has an exact match and both sides exceed Delta 0.10 threshold (CE Delta {highest_ce_delta:.2f} > 0.10, PE Delta {lowest_pe_delta:.2f} > 0.10). Entire day is skipped (NO TRADE)."
 
     # Build active 2-day expiry chain board list for scanner
     all_chain_prods = []
