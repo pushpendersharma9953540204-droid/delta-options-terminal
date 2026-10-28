@@ -1,9 +1,9 @@
 {
   "btc_price": 80567.0,
   "atm_strike": 80600.0,
-  "atm_straddle": 1354.0,
-  "offset": 3385.0,
-  "intended_ce": 84000.0,
+  "atm_straddle": 1360.0,
+  "offset": 3400.0,
+  "intended_ce": 84000,
   "intended_pe": 77200.0,
   "selected_ce": 83600.0,
   "selected_pe": 77200.0,
@@ -11,7 +11,7 @@
   "pe_dist": 0.0,
   "ce_symbol": "C-BTC-83600-291026",
   "pe_symbol": "P-BTC-77200-291026",
-  "ce_entry_price": 46.0,
+  "ce_entry_price": 34.0,
   "pe_entry_price": 46.0,
   "ce_sub_note": "According to strategy, intended strike to sell is $84,000 CE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is $83,600 CE (400 points away).",
   "pe_sub_note": "Exact strategy intended strike $77,200 PE is available and being sold directly (0 points away).",
@@ -21,10 +21,10 @@
   "pe_status": "QUEUE_SELL",
   "ce_rule_code": "[B] Clamped Highest",
   "pe_rule_code": "[A] Exact Match",
-  "ce_rule_title": "[B] Not Listed, but Delta 0.07 <= 0.10 -> Clamped to Highest CE",
+  "ce_rule_title": "[B] Not Listed, but Delta 0.05 <= 0.10 -> Clamped to Highest CE",
   "pe_rule_title": "[A] Target PE Listed on Exchange Board",
-  "ce_greek_delta": 0.06751278,
-  "pe_greek_delta": 0.065,
+  "ce_greek_delta": 0.05162301,
+  "pe_greek_delta": 0.04347994,
   "highest_listed_ce": 83600.0,
-  "lowest_listed_pe": 76800.0
+  "lowest_listed_pe": 77200.0
 }

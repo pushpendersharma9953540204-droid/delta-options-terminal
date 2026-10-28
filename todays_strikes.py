@@ -234,6 +234,21 @@ def get_complete_trade_ticket(mode: str = "auto"):
         raw_target_ce = atm_k + offset
         raw_target_pe = atm_k - offset
 
+        # Determine appropriate strike step (typically 200.0 on Delta Exchange near ATM)
+        strike_step = 200.0
+        if available_strikes and len(available_strikes) >= 2:
+            local_steps = [
+                abs(available_strikes[i+1] - available_strikes[i])
+                for i in range(len(available_strikes)-1)
+                if abs(available_strikes[i] - atm_k) <= 3000 and (available_strikes[i+1] - available_strikes[i]) > 0
+            ]
+            if local_steps:
+                strike_step = min(local_steps)
+
+        # Mathematical intended strikes rounded to the standard option strike grid
+        target_ce_rounded = round(raw_target_ce / strike_step) * strike_step
+        target_pe_rounded = round(raw_target_pe / strike_step) * strike_step
+
         # Get all actual Call strikes and Put strikes listed for this expiry
         call_strikes = sorted(list(set(
             float(p.get("strike_price"))
@@ -246,8 +261,8 @@ def get_complete_trade_ticket(mode: str = "auto"):
             if "put" in p.get("contract_type", "").lower() and p.get("strike_price") is not None
         )))
 
-        highest_listed_ce = max(call_strikes) if call_strikes else raw_target_ce
-        lowest_listed_pe = min(put_strikes) if put_strikes else raw_target_pe
+        highest_listed_ce = max(call_strikes) if call_strikes else target_ce_rounded
+        lowest_listed_pe = min(put_strikes) if put_strikes else target_pe_rounded
 
         # Fetch live Greek Delta for board limit strikes (used when target is outside board)
         highest_ce_sym = f"C-BTC-{int(highest_listed_ce)}-{exp_dt_ist.strftime('%d%m%y')}"
@@ -259,27 +274,29 @@ def get_complete_trade_ticket(mode: str = "auto"):
         # ----------------------------------------------------
         # EVALUATE CALL LEG (CE) ACCORDING TO STRATEGY RULES
         # ----------------------------------------------------
-        # Rule: If exact match of offset exists within board -> do NOT clamp to highest; sell exact match.
-        # If exact match is NOT available (target exceeds highest listed CE) -> see delta:
+        # Rule 1: If exact match of offset exists within board -> do NOT clamp to highest; sell exact match.
+        # Rule 2/3: If exact match is NOT available (target exceeds highest listed CE) -> see delta:
         # If delta <= 0.10 -> clamped to highest; if delta > 0.10 -> skip leg.
-        if call_strikes and raw_target_ce <= highest_listed_ce:
-            exact_ce = min(call_strikes, key=lambda k: abs(k - raw_target_ce))
+        if call_strikes and target_ce_rounded <= highest_listed_ce:
+            exact_ce = min(call_strikes, key=lambda k: abs(k - target_ce_rounded))
             selected_ce = exact_ce
             intended_ce = exact_ce
             is_ce_sub = False
+            ce_dist = 0.0
             ce_status = "QUEUE_SELL"
             ce_rule_code = "[A] Exact Match"
             ce_rule_title = "[A] Target CE Listed on Exchange Board"
             ce_sub_note = f"Exact strategy intended strike ${selected_ce:,.0f} CE is available and listed on Delta Exchange board."
         else:
-            intended_ce = round(raw_target_ce)
+            intended_ce = target_ce_rounded
             selected_ce = highest_listed_ce
             is_ce_sub = True
+            ce_dist = abs(highest_listed_ce - intended_ce)
             if highest_ce_delta <= 0.10:
                 ce_status = "QUEUE_SELL"
                 ce_rule_code = "[B] Clamped Highest"
                 ce_rule_title = f"[B] Not Listed, but Delta {highest_ce_delta:.2f} <= 0.10 -> Clamped to Highest CE"
-                ce_sub_note = f"Strategy intended strike ${intended_ce:,.0f} CE is not listed (exceeds max ${highest_listed_ce:,.0f}), but highest listed strike ${highest_listed_ce:,.0f} CE has Delta {highest_ce_delta:.2f} <= 0.10 (safe OTM). Clamped to ${highest_listed_ce:,.0f} CE ({abs(highest_listed_ce - intended_ce):,.0f} pts away)."
+                ce_sub_note = f"Strategy intended strike ${intended_ce:,.0f} CE is not listed (exceeds max ${highest_listed_ce:,.0f}), but highest listed strike ${highest_listed_ce:,.0f} CE has Delta {highest_ce_delta:.2f} <= 0.10 (safe OTM). Clamped to ${highest_listed_ce:,.0f} CE ({ce_dist:,.0f} pts away)."
             else:
                 ce_status = "SKIP_LEG"
                 ce_rule_code = "[C] Skipped (Out of Range)"
@@ -289,27 +306,29 @@ def get_complete_trade_ticket(mode: str = "auto"):
         # ----------------------------------------------------
         # EVALUATE PUT LEG (PE) ACCORDING TO STRATEGY RULES
         # ----------------------------------------------------
-        # Rule: If exact match of offset exists within board -> do NOT clamp to lowest; sell exact match.
-        # If exact match is NOT available (target below lowest listed PE) -> see delta:
+        # Rule 1: If exact match of offset exists within board -> do NOT clamp to lowest; sell exact match.
+        # Rule 2/3: If exact match is NOT available (target below lowest listed PE) -> see delta:
         # If delta <= 0.10 -> clamped to lowest; if delta > 0.10 -> skip leg.
-        if put_strikes and raw_target_pe >= lowest_listed_pe:
-            exact_pe = min(put_strikes, key=lambda k: abs(k - raw_target_pe))
+        if put_strikes and target_pe_rounded >= lowest_listed_pe:
+            exact_pe = min(put_strikes, key=lambda k: abs(k - target_pe_rounded))
             selected_pe = exact_pe
             intended_pe = exact_pe
             is_pe_sub = False
+            pe_dist = 0.0
             pe_status = "QUEUE_SELL"
             pe_rule_code = "[A] Exact Match"
             pe_rule_title = "[A] Target PE Listed on Exchange Board"
             pe_sub_note = f"Exact strategy intended strike ${selected_pe:,.0f} PE is available and listed on Delta Exchange board."
         else:
-            intended_pe = round(raw_target_pe)
+            intended_pe = target_pe_rounded
             selected_pe = lowest_listed_pe
             is_pe_sub = True
+            pe_dist = abs(lowest_listed_pe - intended_pe)
             if lowest_pe_delta <= 0.10:
                 pe_status = "QUEUE_SELL"
                 pe_rule_code = "[B] Clamped Lowest"
                 pe_rule_title = f"[B] Not Listed, but Delta {lowest_pe_delta:.2f} <= 0.10 -> Clamped to Lowest PE"
-                pe_sub_note = f"Strategy intended strike ${intended_pe:,.0f} PE is not listed (below min ${lowest_listed_pe:,.0f}), but lowest listed strike ${lowest_listed_pe:,.0f} PE has Delta {lowest_pe_delta:.2f} <= 0.10 (safe OTM). Clamped to ${lowest_listed_pe:,.0f} PE ({abs(lowest_listed_pe - intended_pe):,.0f} pts away)."
+                pe_sub_note = f"Strategy intended strike ${intended_pe:,.0f} PE is not listed (below min ${lowest_listed_pe:,.0f}), but lowest listed strike ${lowest_listed_pe:,.0f} PE has Delta {lowest_pe_delta:.2f} <= 0.10 (safe OTM). Clamped to ${lowest_listed_pe:,.0f} PE ({pe_dist:,.0f} pts away)."
             else:
                 pe_status = "SKIP_LEG"
                 pe_rule_code = "[C] Skipped (Out of Range)"
@@ -344,10 +363,10 @@ def get_complete_trade_ticket(mode: str = "auto"):
             is_entry_locked = False
             price_mode_label = "Live Bid (Indicative before 10:00 PM Close)"
 
-        ce_dist = abs(selected_ce - intended_ce)
-        pe_dist = abs(selected_pe - intended_pe)
-        is_ce_sub = (selected_ce != intended_ce)
-        is_pe_sub = (selected_pe != intended_pe)
+        ce_dist = abs(selected_ce - intended_ce) if is_ce_sub else 0.0
+        pe_dist = abs(selected_pe - intended_pe) if is_pe_sub else 0.0
+        is_ce_sub = (is_ce_sub and ce_dist > 0)
+        is_pe_sub = (is_pe_sub and pe_dist > 0)
 
         if is_ce_sub:
             ce_sub_note = f"According to strategy, intended strike to sell is ${intended_ce:,.0f} CE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is ${selected_ce:,.0f} CE ({ce_dist:,.0f} points away)."
@@ -527,16 +546,18 @@ def get_complete_trade_ticket(mode: str = "auto"):
     ce_max_loss = (ce_sl - ce_entry_price) * qty
     pe_max_loss = (pe_sl - pe_entry_price) * qty
 
-    ce_dist = abs(selected_ce - intended_ce)
-    pe_dist = abs(selected_pe - intended_pe)
+    ce_dist = abs(selected_ce - intended_ce) if is_ce_sub else 0.0
+    pe_dist = abs(selected_pe - intended_pe) if is_pe_sub else 0.0
+    is_ce_sub = (is_ce_sub and ce_dist > 0)
+    is_pe_sub = (is_pe_sub and pe_dist > 0)
 
     # Human-readable substitution explanations
-    if selected_ce != intended_ce:
+    if is_ce_sub:
         ce_sub_note = f"According to strategy, intended strike to sell is ${intended_ce:,.0f} CE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is ${selected_ce:,.0f} CE ({ce_dist:,.0f} points away)."
     else:
         ce_sub_note = f"Exact strategy intended strike ${intended_ce:,.0f} CE is available and being sold directly (0 points away)."
 
-    if selected_pe != intended_pe:
+    if is_pe_sub:
         pe_sub_note = f"According to strategy, intended strike to sell is ${intended_pe:,.0f} PE, but because contract is NOT AVAILABLE on Delta Exchange, the closest eligible strike being sold is ${selected_pe:,.0f} PE ({pe_dist:,.0f} points away)."
     else:
         pe_sub_note = f"Exact strategy intended strike ${intended_pe:,.0f} PE is available and being sold directly (0 points away)."
