@@ -230,71 +230,96 @@ def get_complete_trade_ticket(mode: str = "auto"):
         atm_straddle = atm_ce_bid + atm_pe_bid
         offset = atm_straddle * config.STRADDLE_MULTIPLIER
 
-        intended_ce = strat.round_to_strike(atm_k + offset)
-        intended_pe = strat.round_to_strike(atm_k - offset)
+        raw_target_ce = atm_k + offset
+        raw_target_pe = atm_k - offset
 
-        call_strikes = [k for k in available_strikes if k >= btc_price]
-        put_strikes = [k for k in available_strikes if k <= btc_price]
+        # Get all actual Call strikes and Put strikes listed for this expiry
+        call_strikes = sorted(list(set(
+            float(p.get("strike_price"))
+            for p in exp_prods
+            if "call" in p.get("contract_type", "").lower() and p.get("strike_price") is not None
+        )))
+        put_strikes = sorted(list(set(
+            float(p.get("strike_price"))
+            for p in exp_prods
+            if "put" in p.get("contract_type", "").lower() and p.get("strike_price") is not None
+        )))
 
-        highest_listed_ce = max(call_strikes) if call_strikes else intended_ce
-        lowest_listed_pe = min(put_strikes) if put_strikes else intended_pe
+        highest_listed_ce = max(call_strikes) if call_strikes else raw_target_ce
+        lowest_listed_pe = min(put_strikes) if put_strikes else raw_target_pe
 
-        # Fetch live Greek Delta for candidate strikes
+        # Fetch live Greek Delta for board limit strikes (used when target is outside board)
         highest_ce_sym = f"C-BTC-{int(highest_listed_ce)}-{exp_dt_ist.strftime('%d%m%y')}"
         lowest_pe_sym = f"P-BTC-{int(lowest_listed_pe)}-{exp_dt_ist.strftime('%d%m%y')}"
         
-        ce_greek_delta = abs(float(tickers.get(highest_ce_sym, {}).get("greeks", {}).get("delta") or 0.062))
-        pe_greek_delta = abs(float(tickers.get(lowest_pe_sym, {}).get("greeks", {}).get("delta") or 0.065))
+        highest_ce_delta = abs(float(tickers.get(highest_ce_sym, {}).get("greeks", {}).get("delta") or 0.05))
+        lowest_pe_delta = abs(float(tickers.get(lowest_pe_sym, {}).get("greeks", {}).get("delta") or 0.05))
 
         # ----------------------------------------------------
-        # EVALUATE CALL LEG (CE) ACCORDING TO EXECUTION GUIDE
+        # EVALUATE CALL LEG (CE) ACCORDING TO STRATEGY RULES
         # ----------------------------------------------------
-        if intended_ce in call_strikes:
+        # Rule: If exact match of offset exists within board -> do NOT clamp to highest; sell exact match.
+        # If exact match is NOT available (target exceeds highest listed CE) -> see delta:
+        # If delta <= 0.10 -> clamped to highest; if delta > 0.10 -> skip leg.
+        if call_strikes and raw_target_ce <= highest_listed_ce:
+            exact_ce = min(call_strikes, key=lambda k: abs(k - raw_target_ce))
+            selected_ce = exact_ce
+            intended_ce = exact_ce
+            is_ce_sub = False
             ce_status = "QUEUE_SELL"
             ce_rule_code = "[A] Exact Match"
             ce_rule_title = "[A] Target CE Listed on Exchange Board"
-            ce_sub_note = f"Exact strategy intended strike ${intended_ce:,.0f} CE is available and listed on Delta Exchange board."
-            selected_ce = intended_ce
-            is_ce_sub = False
-        elif ce_greek_delta <= 0.10:
-            ce_status = "QUEUE_SELL"
-            ce_rule_code = "[B] Clamped Highest"
-            ce_rule_title = f"[B] Not Listed, but Delta {ce_greek_delta:.2f} <= 0.10 -> Clamped to Highest CE"
-            ce_sub_note = f"Strategy intended strike ${intended_ce:,.0f} CE is not listed, but highest listed strike ${highest_listed_ce:,.0f} CE has Delta {ce_greek_delta:.2f} <= 0.10 (safe OTM). Clamped to ${highest_listed_ce:,.0f} CE ({abs(highest_listed_ce - intended_ce):,.0f} pts away)."
-            selected_ce = highest_listed_ce
-            is_ce_sub = True
+            ce_sub_note = f"Exact strategy intended strike ${selected_ce:,.0f} CE is available and listed on Delta Exchange board."
         else:
-            ce_status = "SKIP_LEG"
-            ce_rule_code = "[C] Skipped (Out of Range)"
-            ce_rule_title = f"[C] Target Out of Board Range (Delta {ce_greek_delta:.2f} > 0.10) -> Skip Leg"
-            ce_sub_note = f"Target strike ${intended_ce:,.0f} CE is outside Delta board range and highest strike has Delta {ce_greek_delta:.2f} > 0.10. Call leg skipped (do not trade)."
+            intended_ce = round(raw_target_ce)
             selected_ce = highest_listed_ce
             is_ce_sub = True
+            if highest_ce_delta <= 0.10:
+                ce_status = "QUEUE_SELL"
+                ce_rule_code = "[B] Clamped Highest"
+                ce_rule_title = f"[B] Not Listed, but Delta {highest_ce_delta:.2f} <= 0.10 -> Clamped to Highest CE"
+                ce_sub_note = f"Strategy intended strike ${intended_ce:,.0f} CE is not listed (exceeds max ${highest_listed_ce:,.0f}), but highest listed strike ${highest_listed_ce:,.0f} CE has Delta {highest_ce_delta:.2f} <= 0.10 (safe OTM). Clamped to ${highest_listed_ce:,.0f} CE ({abs(highest_listed_ce - intended_ce):,.0f} pts away)."
+            else:
+                ce_status = "SKIP_LEG"
+                ce_rule_code = "[C] Skipped (Out of Range)"
+                ce_rule_title = f"[C] Target Out of Board Range (Delta {highest_ce_delta:.2f} > 0.10) -> Skip Leg"
+                ce_sub_note = f"Target strike ${intended_ce:,.0f} CE is outside Delta board range and highest strike has Delta {highest_ce_delta:.2f} > 0.10. Call leg skipped (do not trade)."
 
         # ----------------------------------------------------
-        # EVALUATE PUT LEG (PE) ACCORDING TO EXECUTION GUIDE
+        # EVALUATE PUT LEG (PE) ACCORDING TO STRATEGY RULES
         # ----------------------------------------------------
-        if intended_pe in put_strikes:
+        # Rule: If exact match of offset exists within board -> do NOT clamp to lowest; sell exact match.
+        # If exact match is NOT available (target below lowest listed PE) -> see delta:
+        # If delta <= 0.10 -> clamped to lowest; if delta > 0.10 -> skip leg.
+        if put_strikes and raw_target_pe >= lowest_listed_pe:
+            exact_pe = min(put_strikes, key=lambda k: abs(k - raw_target_pe))
+            selected_pe = exact_pe
+            intended_pe = exact_pe
+            is_pe_sub = False
             pe_status = "QUEUE_SELL"
             pe_rule_code = "[A] Exact Match"
             pe_rule_title = "[A] Target PE Listed on Exchange Board"
-            pe_sub_note = f"Exact strategy intended strike ${intended_pe:,.0f} PE is available and listed on Delta Exchange board."
-            selected_pe = intended_pe
-            is_pe_sub = False
-        elif pe_greek_delta <= 0.10:
-            pe_status = "QUEUE_SELL"
-            pe_rule_code = "[B] Clamped Lowest"
-            pe_rule_title = f"[B] Not Listed, but Delta {pe_greek_delta:.2f} <= 0.10 -> Clamped to Lowest PE"
-            pe_sub_note = f"Strategy intended strike ${intended_pe:,.0f} PE is not listed, but lowest listed strike ${lowest_listed_pe:,.0f} PE has Delta {pe_greek_delta:.2f} <= 0.10 (safe OTM). Clamped to ${lowest_listed_pe:,.0f} PE ({abs(lowest_listed_pe - intended_pe):,.0f} pts away)."
-            selected_pe = lowest_listed_pe
-            is_pe_sub = True
+            pe_sub_note = f"Exact strategy intended strike ${selected_pe:,.0f} PE is available and listed on Delta Exchange board."
         else:
-            pe_status = "SKIP_LEG"
-            pe_rule_code = "[C] Skipped (Out of Range)"
-            pe_rule_title = f"[C] Target Out of Board Range (Delta {pe_greek_delta:.2f} > 0.10) -> Skip Leg"
-            pe_sub_note = f"Target strike ${intended_pe:,.0f} PE is outside Delta board range and lowest strike has Delta {pe_greek_delta:.2f} > 0.10. Put leg skipped (do not trade)."
+            intended_pe = round(raw_target_pe)
             selected_pe = lowest_listed_pe
             is_pe_sub = True
+            if lowest_pe_delta <= 0.10:
+                pe_status = "QUEUE_SELL"
+                pe_rule_code = "[B] Clamped Lowest"
+                pe_rule_title = f"[B] Not Listed, but Delta {lowest_pe_delta:.2f} <= 0.10 -> Clamped to Lowest PE"
+                pe_sub_note = f"Strategy intended strike ${intended_pe:,.0f} PE is not listed (below min ${lowest_listed_pe:,.0f}), but lowest listed strike ${lowest_listed_pe:,.0f} PE has Delta {lowest_pe_delta:.2f} <= 0.10 (safe OTM). Clamped to ${lowest_listed_pe:,.0f} PE ({abs(lowest_listed_pe - intended_pe):,.0f} pts away)."
+            else:
+                pe_status = "SKIP_LEG"
+                pe_rule_code = "[C] Skipped (Out of Range)"
+                pe_rule_title = f"[C] Target Out of Board Range (Delta {lowest_pe_delta:.2f} > 0.10) -> Skip Leg"
+                pe_sub_note = f"Target strike ${intended_pe:,.0f} PE is outside Delta board range and lowest strike has Delta {lowest_pe_delta:.2f} > 0.10. Put leg skipped (do not trade)."
+
+        ce_sym = f"C-BTC-{int(selected_ce)}-{exp_dt_ist.strftime('%d%m%y')}"
+        pe_sym = f"P-BTC-{int(selected_pe)}-{exp_dt_ist.strftime('%d%m%y')}"
+        
+        ce_greek_delta = abs(float(tickers.get(ce_sym, {}).get("greeks", {}).get("delta") or (highest_ce_delta if is_ce_sub else 0.05)))
+        pe_greek_delta = abs(float(tickers.get(pe_sym, {}).get("greeks", {}).get("delta") or (lowest_pe_delta if is_pe_sub else 0.05)))
 
         ce_quote = chain_quotes.get(selected_ce, (None, None))[0]
         pe_quote = chain_quotes.get(selected_pe, (None, None))[1]

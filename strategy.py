@@ -52,15 +52,39 @@ class TwoDayStraddleStrangleStrategy:
         self,
         spot_price: float,
         atm_strike: float,
-        atm_straddle_premium: float
+        atm_straddle_premium: float,
+        available_strikes: Optional[List[float]] = None
     ) -> Tuple[float, float, float]:
         """
         Derive target CE and PE strikes using:
         Offset = ATM Straddle Premium * 2.5
+        If exact match is available on board, select exact match without clamping.
         """
         offset = atm_straddle_premium * config.STRADDLE_MULTIPLIER
-        intended_ce = self.round_to_strike(atm_strike + offset)
-        intended_pe = self.round_to_strike(atm_strike - offset)
+        raw_ce = atm_strike + offset
+        raw_pe = atm_strike - offset
+
+        if available_strikes:
+            call_strikes = [k for k in available_strikes if k >= spot_price]
+            put_strikes = [k for k in available_strikes if k <= spot_price]
+
+            if call_strikes and raw_ce <= max(call_strikes):
+                intended_ce = min(call_strikes, key=lambda k: abs(k - raw_ce))
+            elif call_strikes:
+                intended_ce = max(call_strikes)
+            else:
+                intended_ce = self.round_to_strike(raw_ce)
+
+            if put_strikes and raw_pe >= min(put_strikes):
+                intended_pe = min(put_strikes, key=lambda k: abs(k - raw_pe))
+            elif put_strikes:
+                intended_pe = min(put_strikes)
+            else:
+                intended_pe = self.round_to_strike(raw_pe)
+        else:
+            intended_ce = self.round_to_strike(raw_ce)
+            intended_pe = self.round_to_strike(raw_pe)
+
         return intended_ce, intended_pe, offset
 
     def evaluate_strangle_trade(
@@ -96,7 +120,8 @@ class TwoDayStraddleStrangleStrategy:
         intended_ce_k, intended_pe_k, offset = self.derive_intended_strikes(
             spot_price=spot_price,
             atm_strike=atm_k,
-            atm_straddle_premium=atm_straddle
+            atm_straddle_premium=atm_straddle,
+            available_strikes=available_strikes
         )
 
         # Target credit for the OTM strangle is approximately 10-15% of ATM straddle
