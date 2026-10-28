@@ -11,6 +11,7 @@ if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
+from typing import Optional, List, Dict, Any, Tuple
 import requests
 from datetime import datetime, timezone, timedelta
 import pytz
