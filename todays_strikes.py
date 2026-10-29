@@ -427,11 +427,52 @@ def get_complete_trade_ticket(mode: str = "auto"):
         pe_greek_delta = float(cached_snap.get("pe_greek_delta", 0.065))
         highest_listed_ce = float(cached_snap.get("highest_listed_ce", selected_ce))
         lowest_listed_pe = float(cached_snap.get("lowest_listed_pe", selected_pe))
+        highest_ce_delta = ce_greek_delta
+        lowest_pe_delta = pe_greek_delta
 
     # ----------------------------------------------------
     # COMPOSITE DECISION LOGIC (DELTA EXECUTION GUIDE)
     # ----------------------------------------------------
-    if ce_status == "QUEUE_SELL" and pe_status == "QUEUE_SELL":
+    if cached_snap and cached_snap.get("decision"):
+        decision = cached_snap["decision"]
+        decision_badge = cached_snap.get("decision_badge", f"🔵 {decision}" if "PE" in decision else f"🟢 {decision}")
+        decision_color = cached_snap.get("decision_color", "#0284c7" if "PE" in decision else ("#dc2626" if "CE" in decision else "#059669"))
+        market_regime = cached_snap.get("market_regime", "BTC Pumping / Bullish Trend (CE Board Filtered)" if "PE" in decision else "BTC Flat / Rangebound")
+        strategy_type = cached_snap.get("strategy_type", "Naked Put / Bull Credit (1 Leg)" if "PE" in decision else "Short Strangle (2 Legs)")
+        decision_explanation = cached_snap.get("decision_explanation", "")
+        if "PE ONLY" in decision:
+            historical_win_rate = 95.15
+            historical_wins = 98
+            historical_losses = 5
+            historical_profit_usd = 145.45
+            historical_profit_inr = 12363.0
+            historical_days_count = 103
+            historical_days_pct = 28.9
+        elif "CE ONLY" in decision:
+            historical_win_rate = 94.68
+            historical_wins = 89
+            historical_losses = 4
+            historical_profit_usd = 104.00
+            historical_profit_inr = 8840.0
+            historical_days_count = 94
+            historical_days_pct = 26.4
+        elif "BOTH" in decision:
+            historical_win_rate = 76.10
+            historical_wins = 121
+            historical_losses = 38
+            historical_profit_usd = 240.71
+            historical_profit_inr = 20460.0
+            historical_days_count = 159
+            historical_days_pct = 44.7
+        else:
+            historical_win_rate = 0.0
+            historical_wins = 0
+            historical_losses = 0
+            historical_profit_usd = 0.0
+            historical_profit_inr = 0.0
+            historical_days_count = 0
+            historical_days_pct = 0.0
+    elif ce_status == "QUEUE_SELL" and pe_status == "QUEUE_SELL":
         decision = "SELL BOTH (CE + PE)"
         decision_badge = "🟢 SELL BOTH (CE + PE)"
         decision_color = "#059669"
@@ -539,12 +580,12 @@ def get_complete_trade_ticket(mode: str = "auto"):
     pe_sl = pe_entry_price * config.STOP_LOSS_MULTIPLIER
 
     qty = config.TRADE_QUANTITY
-    ce_credit = ce_entry_price * qty
-    pe_credit = pe_entry_price * qty
+    ce_credit = (ce_entry_price * qty) if ce_status == "QUEUE_SELL" else 0.0
+    pe_credit = (pe_entry_price * qty) if pe_status == "QUEUE_SELL" else 0.0
     tot_credit = ce_credit + pe_credit
 
-    ce_max_loss = (ce_sl - ce_entry_price) * qty
-    pe_max_loss = (pe_sl - pe_entry_price) * qty
+    ce_max_loss = ((ce_sl - ce_entry_price) * qty) if ce_status == "QUEUE_SELL" else 0.0
+    pe_max_loss = ((pe_sl - pe_entry_price) * qty) if pe_status == "QUEUE_SELL" else 0.0
 
     ce_dist = abs(selected_ce - intended_ce) if is_ce_sub else 0.0
     pe_dist = abs(selected_pe - intended_pe) if is_pe_sub else 0.0
